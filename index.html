@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Influencer</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- ===================== MAIN MENU ===================== -->
+  <main id="screen-menu" class="screen screen-menu active">
+    <div class="menu-card">
+      <h1 class="game-title">INFLUENCER</h1>
+      <p class="game-subtitle">From unknown creator to superstar</p>
+
+      <div class="menu-buttons">
+        <button id="btn-new" class="btn btn-primary" type="button">Start New Game</button>
+        <button id="btn-continue" class="btn btn-secondary" type="button" disabled>
+          Continue
+          <span id="continue-info" class="btn-sub">No saved game</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Development option: deletes the save from localStorage -->
+    <div class="dev-tools">
+      <span>DEV</span>
+      <button id="btn-delete-save" class="btn-link" type="button">Delete save</button>
+    </div>
+  </main>
+
+  <!-- ===================== GAME SCREEN ===================== -->
+  <main id="screen-game" class="screen screen-game">
+    <div class="game-layout">
+
+      <!-- Top bar: level, followers, stats, progress -->
+      <header class="hud">
+        <div class="hud-top">
+          <div id="level-badge" class="level-badge"><small>LEVEL</small><strong id="level">1</strong></div>
+          <div class="followers">
+            <div id="followers" class="followers-count">0</div>
+            <div class="followers-label">Followers</div>
+          </div>
+          <button id="btn-menu" class="btn-small" type="button">Menu</button>
+        </div>
+
+        <div class="stats">
+          <div class="stat"><span class="stat-label">Followers / click</span><span id="per-click" class="stat-value">1</span></div>
+          <div class="stat"><span class="stat-label">Followers / second</span><span id="per-second" class="stat-value">0</span></div>
+        </div>
+
+        <div class="progress">
+          <div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progress-bar">
+            <div id="progress-fill" class="progress-fill"></div>
+          </div>
+          <div id="progress-text" class="progress-text"></div>
+        </div>
+      </header>
+
+      <!--
+        STAGE: the room and the character.
+        data-stage (1/2/3) selects the placeholder look in css/style.css.
+        The "slot" containers are empty places reserved around the character
+        for future furniture, accessories, people, cars, decorations...
+        Each slot holds ".decor" items; data-show lists the stages in which
+        an item is visible.
+      -->
+      <section id="stage" class="stage" data-stage="1" aria-label="Your room">
+        <div class="room-wall"></div>
+        <div class="room-floor"></div>
+
+        <div class="slot slot-wall-left" data-slot="wall-left">
+          <div class="decor decor-window" data-show="1 2 3"></div>
+        </div>
+        <div class="slot slot-wall-right" data-slot="wall-right">
+          <div class="decor decor-poster" data-show="2"></div>
+          <div class="decor decor-neon" data-show="3"><span>LIVE</span></div>
+        </div>
+        <div class="slot slot-floor-left" data-slot="floor-left">
+          <div class="decor decor-box" data-show="1"></div>
+          <div class="decor decor-lamp" data-show="2 3"></div>
+        </div>
+        <div class="slot slot-floor-right" data-slot="floor-right">
+          <div class="decor decor-desk" data-show="2"><i></i></div>
+          <div class="decor decor-sofa" data-show="3"></div>
+        </div>
+        <div class="slot slot-front-left" data-slot="front-left">
+          <div class="decor decor-plant" data-show="3"></div>
+        </div>
+        <div class="slot slot-front-right" data-slot="front-right"></div>
+
+        <div id="stage-name" class="stage-tag">Unknown Creator</div>
+
+        <!-- Placeholder character built from simple HTML/CSS shapes -->
+        <div class="character-wrap">
+          <div class="character-shadow"></div>
+          <div id="character" class="character" role="button" tabindex="0" aria-label="Tap the creator to gain followers">
+            <div class="char-part char-arm char-arm-left"></div>
+            <div class="char-part char-arm char-arm-right"></div>
+            <div class="char-part char-leg char-leg-left"></div>
+            <div class="char-part char-leg char-leg-right"></div>
+            <div class="char-part char-torso"></div>
+            <div class="char-part char-head"></div>
+            <div class="char-part char-hair"></div>
+            <div class="char-part char-eye char-eye-left"></div>
+            <div class="char-part char-eye char-eye-right"></div>
+            <div class="char-part char-mouth"></div>
+            <!-- Accessories, shown only in later visual stages -->
+            <div class="char-part acc-headphones"></div>
+            <div class="char-part acc-shades"></div>
+            <div class="char-part acc-chain"></div>
+          </div>
+        </div>
+
+        <div class="stage-hint">Tap the creator to gain followers</div>
+        <div id="float-layer" class="float-layer"></div>
+      </section>
+
+      <!-- Upgrades and unlocks -->
+      <section class="panel upgrades">
+        <h2>Bonuses</h2>
+        <p class="panel-note">Followers are never spent. Reaching a follower milestone makes the next bonus level available; claim it when its timer is finished.</p>
+        <div id="upgrade-list" class="upgrade-list"></div>
+
+        <h2 class="panel-subtitle">Unlocks</h2>
+        <ul id="unlock-list" class="unlock-list"></ul>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- Pop-up messages (level up, unlocks, new look) -->
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+
+  <!--
+    Plain scripts, loaded in this order (works from file://, no server needed):
+    config -> state -> storage -> game -> ui -> main
+  -->
+  <script src="js/config.js"></script>
+  <script src="js/state.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
