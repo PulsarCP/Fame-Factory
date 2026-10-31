@@ -60,7 +60,7 @@
 
       <!--
         STAGE: the room and the character.
-        data-stage (1/2/3) selects the placeholder look in css/style.css.
+        data-stage (1/2/3/4) selects the placeholder look in css/style.css.
         The "slot" containers are empty places reserved around the character
         for future furniture, accessories, people, cars, decorations...
         Each slot holds ".decor" items; data-show lists the stages in which
@@ -69,21 +69,24 @@
       <section id="stage" class="stage" data-stage="1" aria-label="Your room">
         <div class="room-wall"></div>
         <div class="room-floor"></div>
+        <div class="spotlights" aria-hidden="true"></div>
 
         <div class="slot slot-wall-left" data-slot="wall-left">
-          <div class="decor decor-window" data-show="1 2 3"></div>
+          <div class="decor decor-window" data-show="1 2 3 4"></div>
         </div>
         <div class="slot slot-wall-right" data-slot="wall-right">
           <div class="decor decor-poster" data-show="2"></div>
           <div class="decor decor-neon" data-show="3"><span>LIVE</span></div>
+          <div class="decor decor-star" data-show="4"><span>STAR</span></div>
         </div>
         <div class="slot slot-floor-left" data-slot="floor-left">
           <div class="decor decor-box" data-show="1"></div>
           <div class="decor decor-lamp" data-show="2 3"></div>
+          <div class="decor decor-trophy" data-show="4"></div>
         </div>
         <div class="slot slot-floor-right" data-slot="floor-right">
           <div class="decor decor-desk" data-show="2"><i></i></div>
-          <div class="decor decor-sofa" data-show="3"></div>
+          <div class="decor decor-sofa" data-show="3 4"></div>
         </div>
         <div class="slot slot-front-left" data-slot="front-left">
           <div class="decor decor-plant" data-show="3"></div>
@@ -91,6 +94,15 @@
         <div class="slot slot-front-right" data-slot="front-right"></div>
 
         <div id="stage-name" class="stage-tag">Unknown Creator</div>
+
+        <!-- Temporary event banner (Going Viral). Hidden unless an event is running. -->
+        <div id="event-banner" class="event-banner" hidden>
+          <div class="event-text">
+            <div id="event-title" class="event-title">GOING VIRAL</div>
+            <div id="event-label" class="event-label">2X FOLLOWERS</div>
+          </div>
+          <div id="event-timer" class="event-timer">00:30</div>
+        </div>
 
         <!-- Placeholder character built from simple HTML/CSS shapes -->
         <div class="character-wrap">
@@ -110,6 +122,7 @@
             <div class="char-part acc-headphones"></div>
             <div class="char-part acc-shades"></div>
             <div class="char-part acc-chain"></div>
+            <div class="char-part acc-crown"></div>
           </div>
         </div>
 
@@ -123,25 +136,65 @@
         <p class="panel-note">Followers are never spent. Reaching a follower milestone makes the next bonus level available; claim it when its timer is finished.</p>
         <div id="upgrade-list" class="upgrade-list"></div>
 
+        <h2 class="panel-subtitle">Minigames</h2>
+        <div id="minigame-list" class="minigame-list"></div>
+
         <h2 class="panel-subtitle">Unlocks</h2>
         <ul id="unlock-list" class="unlock-list"></ul>
+
+        <!-- Tapping this label 7 times opens the hidden developer panel (see js/dev.js) -->
+        <div id="version-label" class="version-label">v0.2.0-dev</div>
       </section>
 
     </div>
   </main>
 
-  <!-- Pop-up messages (level up, unlocks, new look) -->
+  <!-- ===================== DICE GAME (opened from the Minigames list) ===================== -->
+  <div id="modal-dice" class="modal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="dice-title">
+      <h2 id="dice-title" class="modal-title">Dice Game</h2>
+      <p id="dice-help" class="modal-text"></p>
+
+      <div id="dice" class="die" data-value="0" aria-live="polite" aria-label="Dice">
+        <span class="pip p1"></span><span class="pip p2"></span><span class="pip p3"></span>
+        <span class="pip p4"></span><span class="pip p5"></span><span class="pip p6"></span>
+        <span class="pip p7"></span><span class="pip p8"></span><span class="pip p9"></span>
+      </div>
+
+      <div id="dice-result" class="dice-result"></div>
+
+      <button id="btn-roll" class="btn btn-primary" type="button">ROLL THE DICE</button>
+      <button id="btn-dice-close" class="btn-link modal-close" type="button">Close</button>
+    </div>
+  </div>
+
+  <!-- ===================== WELCOME BACK (offline earnings) ===================== -->
+  <div id="modal-welcome" class="modal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="welcome-title">
+      <h2 id="welcome-title" class="modal-title">WELCOME BACK</h2>
+      <p class="modal-text">You were away for:</p>
+      <div id="welcome-away" class="modal-big">0m</div>
+      <p class="modal-text">Your Auto-Post Scheduler earned:</p>
+      <div id="welcome-earned" class="modal-big modal-gold">+0 followers</div>
+      <p id="welcome-note" class="modal-note" hidden></p>
+      <button id="btn-collect" class="btn btn-primary" type="button">COLLECT</button>
+    </div>
+  </div>
+
+  <!-- Pop-up messages (level up, unlocks, events) -->
   <div id="toasts" class="toasts" aria-live="polite"></div>
 
   <!--
     Plain scripts, loaded in this order (works from file://, no server needed):
-    config -> state -> storage -> game -> ui -> main
+    config -> format -> state -> storage -> game -> ui -> dev -> main
   -->
   <script src="js/config.js"></script>
+  <script src="js/format.js"></script>
   <script src="js/state.js"></script>
   <script src="js/storage.js"></script>
   <script src="js/game.js"></script>
   <script src="js/ui.js"></script>
+  <script src="js/dev.js"></script>
   <script src="js/main.js"></script>
 </body>
 </html>

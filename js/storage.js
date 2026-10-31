@@ -6,7 +6,9 @@
  * (e.g. cloud saves) by changing only this file.
  *
  * Save format in localStorage:
- *   { version, savedAt, state: { ...see state.js } }
+ *   { saveVersion, savedAt, state: { ...see state.js } }
+ * Older saves used "version" instead of "saveVersion"; both are accepted.
+ * Missing fields are filled with safe defaults by State.sanitize().
  * ---------------------------------------------------------------------------
  */
 (function (NS) {
@@ -19,7 +21,7 @@
   function save(state) {
     try {
       const payload = {
-        version: Config.SAVE.version,
+        saveVersion: Config.SAVE.version,
         savedAt: new Date().toISOString(),
         state: state
       };
@@ -34,15 +36,26 @@
 
   /** Returns a valid state object, or null if there is no usable save. */
   function load() {
+    let text = null;
     try {
-      const text = localStorage.getItem(Config.SAVE.key);
+      text = localStorage.getItem(Config.SAVE.key);
       if (!text) return null;
       const payload = JSON.parse(text);
+      // payload.saveVersion / payload.version are informational: sanitize()
+      // accepts every older (or newer) layout by reading only the fields it knows.
       return State.sanitize(payload && payload.state);
     } catch (error) {
       console.warn('[Influencer] Could not read save:', error);
+      keepCopyOfBrokenSave(text);
       return null;
     }
+  }
+
+  /** A broken save is not silently lost: a copy stays in localStorage. */
+  function keepCopyOfBrokenSave(text) {
+    try {
+      if (text) localStorage.setItem(Config.SAVE.key + '.corrupt', text);
+    } catch (error) { /* nothing more we can do */ }
   }
 
   function hasSave() {

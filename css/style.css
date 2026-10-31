@@ -175,7 +175,7 @@ button:disabled { cursor: not-allowed; }
   /* Everything inside the stage scales with this font size (em units). */
   font-size: clamp(10px, 3.3vw, 16px);
   position: relative;
-  min-height: 390px;
+  min-height: 440px;
   overflow: hidden;
   border-radius: 20px;
   border: 1px solid var(--panel-border);
@@ -470,3 +470,219 @@ button:disabled { cursor: not-allowed; }
 @media (prefers-reduced-motion: reduce) {
   .float-text { animation-duration: 0.01s; }
 }
+
+/* ==========================================================================
+   8. VERSION 0.2 ADDITIONS
+   8a Visual stage 4 (Level 20)     8d Minigames + dice
+   8b Viral event look              8e Modals (dice, welcome back)
+   8c Boosted numbers               8f Developer panel
+   ========================================================================== */
+
+html, body { max-width: 100%; overflow-x: hidden; }
+[hidden] { display: none !important; }
+
+@media (min-width: 480px) {
+  .stage { min-height: 480px; }
+}
+
+/* ============================ 8a. STAGE 4 (LEVEL 20) ============================ */
+/* "Global Superstar": luxury room, red carpet, spotlights, gold, crown. */
+.stage[data-stage="4"] {
+  --wall-top: #4b1c6e;   --wall-bottom: #2a1048;
+  --floor-a: #8f1d3d;    --floor-b: #741732;
+  --skin: #f6d3b3;       --hair: #f2d46b;
+  --shirt: #f6f1e4;      --pants: #f6f1e4;     --shoes: #ffd166;
+  --window-glow: #ffb86b;
+  --vignette: 0.1;
+}
+.stage[data-stage="4"] .room-wall {
+  background:
+    linear-gradient(90deg, transparent 0 48%, rgba(255, 209, 102, 0.18) 49% 51%, transparent 52% 100%),
+    linear-gradient(var(--wall-top), var(--wall-bottom));
+}
+.stage[data-stage="4"] .room-floor { border-top: 6px solid #ffd166; }
+
+.stage[data-stage="4"] .acc-headphones { display: none; }
+.stage[data-stage="4"] .acc-shades,
+.stage[data-stage="4"] .acc-chain,
+.stage[data-stage="4"] .acc-crown { display: block; }
+.stage[data-stage="4"] .character-wrap { filter: drop-shadow(0 0 14px rgba(255, 209, 102, 0.55)); }
+
+.acc-crown { display: none; z-index: 6; left: 2.3em; top: -2.1em; width: 4.4em; height: 2.4em;
+  background: linear-gradient(#ffe08a, #d9a21b);
+  clip-path: polygon(0 100%, 0 25%, 22% 60%, 50% 0, 78% 60%, 100% 25%, 100% 100%); }
+
+.stage[data-stage="4"] .decor[data-show~="4"] { display: block; }
+
+/* Spotlight beams and sparkles (stage 4 only) */
+.spotlights { display: none; position: absolute; left: 0; right: 0; top: 0; height: 75%; z-index: 3; pointer-events: none; }
+.stage[data-stage="4"] .spotlights { display: block; }
+.spotlights::before, .spotlights::after {
+  content: ""; position: absolute; top: 0; width: 34%; height: 100%;
+  background: linear-gradient(rgba(255, 238, 180, 0.38), rgba(255, 238, 180, 0));
+  clip-path: polygon(42% 0, 58% 0, 100% 100%, 0 100%);
+  animation: beam 3s ease-in-out infinite alternate;
+}
+.spotlights::before { left: 14%; }
+.spotlights::after  { right: 14%; animation-delay: 1.5s; }
+@keyframes beam { from { opacity: 0.45; } to { opacity: 1; } }
+
+.stage[data-stage="4"]::before {
+  content: ""; position: absolute; inset: 0; z-index: 14; pointer-events: none;
+  background-image:
+    radial-gradient(circle, rgba(255, 255, 255, 0.95) 0 1.6px, transparent 2.4px),
+    radial-gradient(circle, rgba(255, 224, 138, 0.9) 0 1.4px, transparent 2.2px);
+  background-size: 90px 110px, 140px 90px;
+  background-position: 10px 20px, 60px 55px;
+  animation: twinkle 2.2s ease-in-out infinite alternate;
+}
+@keyframes twinkle { from { opacity: 0.25; } to { opacity: 0.9; } }
+
+/* Stage 4 decor (all placeholders) */
+.decor-star {
+  left: 4%; right: 4%; top: 12%; bottom: 12%;
+  border: 0.3em solid #ffd166; border-radius: 1.2em;
+  color: #fff3c4; font-weight: 900; letter-spacing: 0.2em; font-size: 1.15em;
+  text-shadow: 0 0 10px #ffb703;
+  box-shadow: 0 0 16px #ffb703, inset 0 0 12px rgba(255, 183, 3, 0.7);
+}
+.decor-star span { position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%); text-align: center; }
+
+.decor-trophy {
+  left: 22%; right: 22%; bottom: 0; height: 92%;
+  background: linear-gradient(#d9a21b, #d9a21b) 50% 56% / 14% 34% no-repeat;
+}
+.decor-trophy::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 54%;
+  background: linear-gradient(#ffe08a, #d9a21b);
+  border-radius: 0.3em 0.3em 50% 50% / 0.3em 0.3em 90% 90%;
+}
+.decor-trophy::after {
+  content: ""; position: absolute; left: 8%; right: 8%; bottom: 0; height: 16%;
+  background: linear-gradient(#d9a21b, #a9770a); border-radius: 0.3em;
+}
+.stage[data-stage="4"] .decor-sofa { background: #7a1632; box-shadow: inset 0 -0.7em 0 rgba(0, 0, 0, 0.25), 0 0 0 0.25em #ffd166; }
+.stage[data-stage="4"] .decor-sofa::before { background: #8f1d3d; box-shadow: 0 0 0 0.25em #ffd166; }
+.stage[data-stage="4"] .decor-window { border-color: #ffd166; }
+
+/* ============================ 8b. VIRAL EVENT LOOK ============================ */
+.event-banner {
+  position: absolute; z-index: 12; top: 40px; left: 8px; right: 8px;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 6px 14px; border-radius: 14px; color: #fff;
+  background: linear-gradient(90deg, #ff2d78, #ff9a3d);
+  box-shadow: 0 0 18px rgba(255, 90, 60, 0.75);
+  animation: viral-pulse 0.9s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+.event-title { font-size: 1rem; font-weight: 900; letter-spacing: 0.08em; line-height: 1.1; }
+.event-label { font-size: 0.75rem; font-weight: 800; letter-spacing: 0.06em; opacity: 0.95; }
+.event-timer { font-size: 1.6rem; font-weight: 900; font-variant-numeric: tabular-nums; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.25); }
+@keyframes viral-pulse { from { transform: scale(1); } to { transform: scale(1.025); } }
+
+.stage.viral { box-shadow: 0 0 0 2px #ff9a3d, 0 0 26px rgba(255, 120, 60, 0.65); }
+
+.float-text.viral { color: #ffd166; font-size: 1.85rem; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.4), 0 0 14px rgba(255, 120, 60, 0.95); }
+.float-text.passive.viral { font-size: 1.2rem; }
+
+/* ============================ 8c. BOOSTED NUMBERS ============================ */
+.stat-value.boosted { color: var(--gold); text-shadow: 0 0 10px rgba(255, 209, 102, 0.7); }
+
+.version-label {
+  margin-top: 14px; padding: 10px; text-align: center;
+  font-size: 0.7rem; letter-spacing: 0.12em; color: var(--muted); opacity: 0.55;
+}
+
+/* ============================ 8d. MINIGAMES + DICE ============================ */
+.minigame-list { display: flex; flex-direction: column; gap: 10px; }
+.minigame {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  width: 100%; min-height: 56px; padding: 10px 14px; text-align: left;
+  border-radius: 12px; border: 1px solid transparent; background: rgba(0, 0, 0, 0.22);
+}
+.minigame-name { font-weight: 800; }
+.minigame-status { font-size: 0.75rem; color: var(--muted); text-align: right; }
+.minigame.ready { border-color: var(--good); box-shadow: 0 0 14px rgba(61, 220, 151, 0.25); }
+.minigame.ready .minigame-status { color: var(--good); font-weight: 800; }
+.minigame.locked { opacity: 0.6; }
+
+.die {
+  position: relative; width: 96px; height: 96px; margin: 14px auto 10px; padding: 12px;
+  display: grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+  border-radius: 18px; background: #fff;
+  box-shadow: inset 0 -5px 0 rgba(0, 0, 0, 0.12), 0 8px 20px rgba(0, 0, 0, 0.4);
+}
+.pip { place-self: center; width: 16px; height: 16px; border-radius: 50%; background: #22223b; opacity: 0; }
+.die[data-value="1"] .p5,
+.die[data-value="2"] .p1, .die[data-value="2"] .p9,
+.die[data-value="3"] .p1, .die[data-value="3"] .p5, .die[data-value="3"] .p9,
+.die[data-value="4"] .p1, .die[data-value="4"] .p3, .die[data-value="4"] .p7, .die[data-value="4"] .p9,
+.die[data-value="5"] .p1, .die[data-value="5"] .p3, .die[data-value="5"] .p5, .die[data-value="5"] .p7, .die[data-value="5"] .p9,
+.die[data-value="6"] .p1, .die[data-value="6"] .p3, .die[data-value="6"] .p4,
+.die[data-value="6"] .p6, .die[data-value="6"] .p7, .die[data-value="6"] .p9 { opacity: 1; }
+.die[data-value="0"]::after {
+  content: "?"; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 3rem; font-weight: 900; color: var(--accent-2);
+}
+.die.rolling { animation: die-shake 0.28s linear infinite; }
+@keyframes die-shake {
+  0%   { transform: rotate(0deg)   translate(0, 0); }
+  25%  { transform: rotate(-12deg) translate(-3px, 2px); }
+  50%  { transform: rotate(8deg)   translate(3px, -2px); }
+  75%  { transform: rotate(-6deg)  translate(-2px, -2px); }
+  100% { transform: rotate(0deg)   translate(0, 0); }
+}
+.dice-result { min-height: 2.6em; margin-bottom: 12px; font-weight: 800; color: var(--gold); }
+
+/* ============================ 8e. MODALS ============================ */
+.modal {
+  position: fixed; inset: 0; z-index: 200;
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px; overflow: auto;
+  background: rgba(8, 3, 20, 0.8);
+}
+.modal-card {
+  width: 100%; max-width: 380px; max-height: calc(100vh - 32px); max-height: calc(100dvh - 32px);
+  overflow: auto; padding: 20px 18px; text-align: center;
+  border-radius: 20px; border: 1px solid var(--panel-border);
+  background: linear-gradient(160deg, #2d1757, #1b0e45);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+}
+.modal-title { margin: 0 0 6px; font-size: 1.4rem; font-weight: 900; letter-spacing: 0.08em; }
+.modal-text { margin: 8px 0 0; font-size: 0.85rem; color: var(--muted); }
+.modal-big { margin: 2px 0 6px; font-size: 1.7rem; font-weight: 900; font-variant-numeric: tabular-nums; }
+.modal-gold { color: var(--gold); }
+.modal-note { margin: 0 0 8px; font-size: 0.72rem; color: var(--muted); }
+.modal-card .btn { margin-top: 10px; }
+.modal-close { display: block; margin: 12px auto 0; padding: 10px 16px; }
+
+.toasts { z-index: 300; }   /* toasts stay visible above modals */
+
+/* ============================ 8f. DEVELOPER PANEL ============================ */
+.dev-card { max-width: 440px; text-align: left; }
+.dev-card .modal-title { text-align: center; }
+.dev-status {
+  margin-bottom: 8px; padding: 8px 10px; border-radius: 10px; word-break: break-word;
+  font: 0.72rem/1.4 ui-monospace, Menlo, Consolas, monospace;
+  color: var(--good); background: rgba(0, 0, 0, 0.35);
+}
+.dev-section { margin-top: 12px; }
+.dev-heading { margin-bottom: 6px; font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.dev-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.dev-btn {
+  min-height: 44px; padding: 8px 10px; border-radius: 10px;
+  border: 1px solid var(--panel-border); background: rgba(255, 255, 255, 0.08);
+  font-size: 0.78rem; font-weight: 700; line-height: 1.2;
+}
+.dev-btn:active { background: rgba(255, 255, 255, 0.18); }
+.dev-danger { border-color: #ff5c7a; color: #ff9db0; }
+
+/* ============================ 8g. COMPACT TOASTS + TOUCH SIZES ============================ */
+/* Several messages can arrive at once (level up + unlocks): keep them small so
+   they never hide the stage, and let taps pass through them. */
+.toast { padding: 6px 12px; border-radius: 12px; }
+.toast-title { font-size: 0.85rem; line-height: 1.2; }
+.toast-text { font-size: 0.74rem; line-height: 1.25; }
+.toasts { gap: 5px; }
+
+.btn-small { min-height: 44px; min-width: 64px; padding: 10px 14px; }
