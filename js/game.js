@@ -258,7 +258,7 @@
     }
 
     /** Ends a finished event and starts a new one when it is time. Called every tick. */
-    _updateEvents() {
+    _updateEvents(quiet) {
       const s = this.state;
       const now = this.now();
 
@@ -267,7 +267,8 @@
         if (!def) {
           s.activeEvent = null;
         } else if (now >= s.activeEvent.endsAt) {
-          this.endEvent();
+          if (quiet) s.activeEvent = null;   // ran out while the player was away: no pop-up
+          else this.endEvent();
         } else if (s.activeEvent.endsAt - now > def.durationSeconds * 1000 + 1000) {
           s.activeEvent.endsAt = now + def.durationSeconds * 1000; // clock was moved backwards
         }
@@ -412,7 +413,7 @@
         }
       }
 
-      this._updateEvents();
+      this._updateEvents(true);
       if (created) {
         this._emit('offlinePending', this.getPendingOffline());
         this._emit('importantChange');

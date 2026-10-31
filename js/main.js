@@ -26,8 +26,17 @@
    *  deleting the save from the menu can never be undone by an autosave. */
   function saveNow() {
     if (!inGame) return;
-    game.markActive();
+    // Note: saving must NOT stamp "last active" - only time that was really
+    // credited (tick / offline check) may move that stamp.
     SaveManager.save(game.getState());
+  }
+
+  /** The player leaves (tab hidden, page closed, back to menu): credit the
+   *  time played so far, then save. */
+  function leaveGame() {
+    if (!inGame) return;
+    advanceTime();
+    saveNow();
   }
 
   /* ======================= time ======================= */
@@ -99,7 +108,7 @@
   }
 
   function onBackToMenu() {
-    saveNow();
+    leaveGame();
     stopTimers();
     inGame = false;
     refreshMenu();
@@ -152,12 +161,12 @@
   // ...and when the page is hidden or closed (covers un-saved clicks).
   document.addEventListener('visibilitychange', function () {
     if (document.visibilityState === 'hidden') {
-      saveNow();
+      leaveGame();
     } else {
       advanceTime();            // coming back: catch up (offline income if it was long)
     }
   });
-  window.addEventListener('pagehide', saveNow);
+  window.addEventListener('pagehide', leaveGame);
 
   refreshMenu();
   UI.showScreen('menu');

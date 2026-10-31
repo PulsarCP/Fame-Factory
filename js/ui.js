@@ -263,7 +263,7 @@
       card.root.classList.toggle('locked', !info.available);
       card.root.classList.toggle('ready', info.ready);
       setText(card.level, 'Lv ' + info.level);
-      setText(card.desc, 'Next level: +' + formatNumber(info.nextEffect) + ' followers ' + statLabel + ' (free)');
+      setText(card.desc, 'Next level: +' + formatNumber(info.nextEffect) + (info.nextEffect === 1 ? ' follower ' : ' followers ') + statLabel + ' (free)');
 
       if (!info.available) {
         // Feature not unlocked yet (e.g. passive followers at Level 5)

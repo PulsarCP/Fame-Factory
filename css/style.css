@@ -654,7 +654,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .modal-gold { color: var(--gold); }
 .modal-note { margin: 0 0 8px; font-size: 0.72rem; color: var(--muted); }
 .modal-card .btn { margin-top: 10px; }
-.modal-close { display: block; margin: 12px auto 0; padding: 10px 16px; }
+.modal-close { display: block; margin: 12px auto 0; padding: 10px 16px; min-height: 44px; }
 
 .toasts { z-index: 300; }   /* toasts stay visible above modals */
 
