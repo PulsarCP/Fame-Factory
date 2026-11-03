@@ -96,6 +96,57 @@
     });
     addButton(grid, 'End Viral Event', function () { game.endEvent(); });
 
+    grid = section(card, 'Money and shop');
+    addButton(grid, 'Add $100', function () { game.devAddMoney(100); });
+    addButton(grid, 'Add $1,000', function () { game.devAddMoney(1000); });
+    addButton(grid, 'Add $10,000', function () { game.devAddMoney(10000); });
+    addButton(grid, 'Set money to 0', function () { game.devSetMoney(0); });
+    addButton(grid, 'Unlock / test Money system', function () {
+      if (game.getState().level < Config.MONEY.unlockLevel) jumpToLevel(Config.MONEY.unlockLevel);
+      else ui.toast('Dev', 'Money is already unlocked.');
+    });
+    addButton(grid, 'Open Shop', function () { close(); ui.openShop(); });
+
+    grid = section(card, 'Economy test presets (reset money, items, payouts)');
+    [10, 15, 20].forEach(function (level) {
+      addButton(grid, 'Test Level ' + level + ' economy', function () {
+        game.devEconomyPreset(level);
+        ui.toast('Dev', 'Economy reset at Level ' + level + '.');
+      });
+    });
+
+    grid = section(card, 'Cup Shuffle');
+    addButton(grid, 'Unlock / test Cup Shuffle', function () {
+      const level = Config.getUnlock('cupShuffle').level;
+      if (game.getState().level < level) jumpToLevel(level);
+      close();
+      ui.openCup();
+    });
+    addButton(grid, 'Clear Cup Shuffle cooldown', function () { game.devClearCooldown('cupShuffle'); });
+    addButton(grid, 'Force Cup Shuffle win', function () {
+      game.devForceCup('win'); close(); ui.openCup();
+    });
+    addButton(grid, 'Force Cup Shuffle loss', function () {
+      game.devForceCup('loss'); close(); ui.openCup();
+    });
+
+    grid = section(card, 'Challenges');
+    addButton(grid, 'Generate challenge', function () {
+      if (!game.devGenerateChallenge()) ui.toast('Dev', 'Challenges unlock at Level ' + Config.CHALLENGES.unlockLevel + '.');
+    });
+    addButton(grid, 'Complete current challenge', function () {
+      if (!game.devCompleteChallenge()) ui.toast('Dev', 'No active challenge.');
+    });
+
+    grid = section(card, 'Sponsorships');
+    addButton(grid, 'Generate sponsorship', function () {
+      if (!game.devGenerateSponsorship()) ui.toast('Dev', 'Needs Level ' + Config.SPONSORSHIPS.unlockLevel + ' and no running sponsorship.');
+    });
+    addButton(grid, 'Complete sponsorship timer', function () {
+      if (!game.devCompleteSponsorship()) ui.toast('Dev', 'No running sponsorship.');
+    });
+    addButton(grid, 'Clear sponsorship', function () { game.devClearSponsorship(); });
+
     grid = section(card, 'Dice game');
     addButton(grid, 'Open Dice Game', function () { close(); ui.openDice(); });
     addButton(grid, 'Clear Dice Cooldown', function () { game.devClearCooldown('dice'); });
@@ -136,7 +187,8 @@
     const ev = game.getActiveEvent();
     statusEl.textContent =
       'Level ' + s.level + '  |  ' + Format.formatNumber(s.followers) + ' followers  |  ' +
-      Format.formatNumber(s.followersPerClick) + '/tap  ' + Format.formatNumber(s.followersPerSecond) + '/s  |  ' +
+      Format.formatRate(s.followersPerClick) + '/tap  ' + Format.formatRate(s.followersPerSecond) + '/s  |  ' +
+      Format.formatMoney(s.money) + '  |  ' +
       (ev ? 'viral ' + Format.formatClock(ev.secondsLeft) : 'no event');
   }
 

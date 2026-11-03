@@ -21,6 +21,14 @@
   let currentScreen = 'menu';
   let diceRolling = false;       // the roll animation is playing
   let diceAnimation = null;      // interval id of the animation
+  let cupPhase = 'idle';         // Cup Shuffle screen: idle | showing | shuffling | pick | result
+  let cupTimers = [];            // pending animation timers of the Cup Shuffle
+  let cupSlots = [];             // cupSlots[cupIndex] = the position the cup stands in
+  let cupCount = 3;              // number of cups on the table
+  let cupLastText = '';          // result text of the last game (until the next one starts)
+  const shopCards = {};          // itemId -> references to its DOM nodes
+  let challengeCard = null;      // references to the challenge card DOM nodes
+  let sponsorCard = null;        // references to the sponsorship card DOM nodes
   const upgradeCards = {};       // bonusId -> references to its DOM nodes
   const unlockRows = {};         // unlockId -> references to its DOM nodes
   const minigameTiles = {};      // minigameId -> references to its DOM nodes
@@ -85,6 +93,19 @@
       diceResult: byId('dice-result'),
       btnRoll: byId('btn-roll'),
       btnDiceClose: byId('btn-dice-close'),
+      money: byId('money'),
+      challengeSection: byId('challenge-section'),
+      challengeBox: byId('challenge-card'),
+      sponsorSection: byId('sponsor-section'),
+      sponsorBox: byId('sponsor-card'),
+      shopSection: byId('shop-section'),
+      shopList: byId('shop-list'),
+      cupModal: byId('modal-cup'),
+      cups: byId('cups'),
+      cupHelp: byId('cup-help'),
+      cupResult: byId('cup-result'),
+      btnCupPlay: byId('btn-cup-play'),
+      btnCupClose: byId('btn-cup-close'),
       welcomeModal: byId('modal-welcome'),
       welcomeAway: byId('welcome-away'),
       welcomeEarned: byId('welcome-earned'),
@@ -125,7 +146,97 @@
     });
   }
 
-  /** One tile per minigame. Only the dice game exists for now. */
+  /** Challenge card: text, progress bar, reward and a collect button. Built once. */
+  function buildChallengeCard() {
+    els.challengeBox.textContent = '';
+    const top = createEl('div', 'card-top');
+    const text = createEl('div', 'card-title');
+    const reward = createEl('div', 'card-reward');
+    top.append(text, reward);
+
+    const bar = createEl('div', 'mini-bar');
+    const fill = createEl('div', 'mini-fill');
+    bar.appendChild(fill);
+
+    const foot = createEl('div', 'card-foot');
+    const note = createEl('div', 'card-note');
+    const button = createEl('button', 'claim-btn');
+    button.type = 'button';
+    const label = createEl('span', 'claim-label');
+    const detail = createEl('span', 'claim-detail');
+    button.append(label, detail);
+    button.addEventListener('click', function () { game.collectChallenge(); });
+    foot.append(note, button);
+
+    els.challengeBox.append(top, bar, foot);
+    challengeCard = { text: text, reward: reward, bar: bar, fill: fill, note: note, button: button, label: label, detail: detail };
+  }
+
+  /** Sponsorship card. Built once; the text changes with the campaign status. */
+  function buildSponsorCard() {
+    els.sponsorBox.textContent = '';
+    const top = createEl('div', 'card-top');
+    const title = createEl('div', 'card-title');
+    const reward = createEl('div', 'card-reward');
+    top.append(title, reward);
+    const meta = createEl('div', 'card-meta');
+
+    const bar = createEl('div', 'mini-bar');
+    const fill = createEl('div', 'mini-fill');
+    bar.appendChild(fill);
+
+    const foot = createEl('div', 'card-foot');
+    const note = createEl('div', 'card-note');
+    const button = createEl('button', 'claim-btn');
+    button.type = 'button';
+    const label = createEl('span', 'claim-label');
+    const detail = createEl('span', 'claim-detail');
+    button.append(label, detail);
+    button.addEventListener('click', function () {
+      const info = game.getSponsorshipInfo();
+      if (info.status === 'offered') game.acceptSponsorship();
+      else if (info.status === 'complete') game.collectSponsorship();
+    });
+    foot.append(note, button);
+
+    els.sponsorBox.append(top, meta, bar, foot);
+    sponsorCard = { title: title, reward: reward, meta: meta, bar: bar, fill: fill, note: note, button: button, label: label, detail: detail };
+  }
+
+  /** One card per shop item, generated from Config.ITEMS (no item is hard-coded here). */
+  function buildShopCards() {
+    els.shopList.textContent = '';
+    Config.ITEMS.forEach(function (item) {
+      const root = createEl('div', 'upgrade');
+      const info = createEl('div', 'upgrade-info');
+      const name = createEl('div', 'upgrade-name', item.name);
+      const tag = createEl('span', 'upgrade-level', item.category);
+      name.appendChild(tag);
+      const effect = createEl('div', 'upgrade-desc', itemEffectText(item));
+      const note = createEl('div', 'upgrade-note');
+      info.append(name, effect, note);
+
+      const button = createEl('button', 'claim-btn');
+      button.type = 'button';
+      const label = createEl('span', 'claim-label');
+      const detail = createEl('span', 'claim-detail');
+      button.append(label, detail);
+      button.addEventListener('click', function () { game.buyItem(item.id); });
+
+      root.append(info, button);
+      els.shopList.appendChild(root);
+      shopCards[item.id] = { root: root, note: note, button: button, label: label, detail: detail };
+    });
+  }
+
+  /** "+10% passive follower generation, +10% sponsorship income" */
+  function itemEffectText(item) {
+    return item.bonuses.map(function (b) {
+      return '+' + Math.round(b.value * 100) + '% ' + Config.BONUS_TYPES[b.type];
+    }).join(', ');
+  }
+
+  /** One tile per minigame (dice, cup shuffle...). */
   function buildMinigameTiles() {
     els.minigameList.textContent = '';
     Object.keys(Config.MINIGAMES).forEach(function (id) {
@@ -188,6 +299,16 @@
       if (e.key === 'Escape' && !els.diceModal.hidden) closeDice();
     });
 
+    // Cup Shuffle modal
+    els.btnCupPlay.addEventListener('click', playCup);
+    els.btnCupClose.addEventListener('click', closeCup);
+    els.cupModal.addEventListener('click', function (e) {
+      if (e.target === els.cupModal) closeCup();
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !els.cupModal.hidden) closeCup();
+    });
+
     // Welcome-back modal: the only way out is COLLECT.
     els.btnCollect.addEventListener('click', function () {
       game.collectOffline();
@@ -207,6 +328,14 @@
     game.on('eventEnded', onEventEnded);
     game.on('offlinePending', showWelcomeIfPending);
     game.on('offlineCollected', onOfflineCollected);
+    game.on('moneyMilestone', onMoneyMilestone);
+    game.on('itemPurchased', onItemPurchased);
+    game.on('sponsorshipOffered', function (e) { toast('New sponsorship!', e.campaign.brand + ' wants to work with you.'); });
+    game.on('sponsorshipComplete', function () { toast('Campaign Complete', 'Collect your payment!'); });
+    game.on('sponsorshipCollected', function (e) { toast('Sponsorship paid', '+' + Format.formatMoney(e.amount) + ' from ' + e.campaign.brand + '.'); });
+    game.on('challengeStarted', function (e) { toast('New challenge', e.info.text); });
+    game.on('challengeComplete', function () { toast('Challenge complete!', 'Collect your reward.'); });
+    game.on('challengeCollected', function (e) { toast('Reward collected', '+' + Format.formatMoney(e.amount) + '.'); });
   }
 
   /* ======================= rendering ======================= */
@@ -220,8 +349,8 @@
 
     // Show the EFFECTIVE rates (they are boosted while an event is running).
     const boosted = game.getTapMultiplier() > 1 || game.getPassiveMultiplier() > 1;
-    setText(els.perClick, formatNumber(game.getClickGain()));
-    setText(els.perSecond, formatNumber(game.getPassiveGain()));
+    setText(els.perClick, Format.formatRate(game.getClickGain()));
+    setText(els.perSecond, Format.formatRate(game.getPassiveGain()));
     els.perClick.classList.toggle('boosted', game.getTapMultiplier() > 1);
     els.perSecond.classList.toggle('boosted', game.getPassiveMultiplier() > 1);
     els.stage.classList.toggle('viral', boosted);
@@ -244,6 +373,11 @@
     renderEvent();
     renderMinigames();
     renderDice();
+    renderCup();
+    renderMoney();
+    renderShop();
+    renderChallenge();
+    renderSponsorship();
   }
 
   /** Cheap refresh used every game step: only things that count down. */
@@ -252,6 +386,9 @@
     renderEvent();
     renderMinigames();
     renderDice();
+    renderCup();
+    renderChallenge();
+    renderSponsorship();
   }
 
   function renderUpgrades() {
@@ -318,7 +455,7 @@
       if (!info.unlocked) {
         text = 'Unlocks at Level ' + Config.getUnlock(info.def.unlockId).level;
       } else if (info.secondsLeft > 0) {
-        text = 'Next roll in ' + Format.formatTime(info.secondsLeft);
+        text = info.def.cooldownText + ' ' + Format.formatTime(info.secondsLeft);
       } else {
         text = 'Ready to play!';
       }
@@ -328,10 +465,170 @@
     });
   }
 
+  /* ======================= money, shop, challenge, sponsorship ======================= */
+
+  /** Money in the HUD (after the Creator Fund unlock) and the owned items in the room. */
+  function renderMoney() {
+    const s = game.getState();
+    els.money.hidden = !s.unlocks.creatorFund;
+    setText(els.money, Format.formatMoney(s.money));
+
+    // The room shows every owned item (data-items lists their visual ids).
+    const visuals = Config.ITEMS
+      .filter(function (item) { return (s.items[item.id] || 0) > 0 && item.visual; })
+      .map(function (item) { return item.visual; })
+      .join(' ');
+    if (els.stage.dataset.items !== visuals) els.stage.dataset.items = visuals;
+  }
+
+  function renderShop() {
+    const s = game.getState();
+    els.shopSection.hidden = !s.unlocks.creatorFund;
+    if (els.shopSection.hidden) return;
+
+    Config.ITEMS.forEach(function (item) {
+      const info = game.getItemInfo(item.id);
+      const card = shopCards[item.id];
+      card.root.classList.toggle('locked', !info.unlocked);
+      card.root.classList.toggle('owned', info.owned);
+      card.root.classList.toggle('ready', info.canBuy);
+
+      if (info.owned) {
+        setText(card.note, '');
+        setText(card.label, 'Status');
+        setText(card.detail, 'OWNED');
+      } else if (!info.unlocked) {
+        setText(card.note, 'Unlocks at Level ' + item.unlockLevel + ' - ' + Format.formatMoney(item.price));
+        setText(card.label, 'Unlocks');
+        setText(card.detail, 'Level ' + item.unlockLevel);
+      } else if (!info.affordable) {
+        setText(card.note, 'Price: ' + Format.formatMoney(item.price) + ' (not owned)');
+        setText(card.label, 'Need');
+        setText(card.detail, Format.formatMoney(item.price));
+      } else {
+        setText(card.note, 'Price: ' + Format.formatMoney(item.price) + ' (not owned)');
+        setText(card.label, 'Buy');
+        setText(card.detail, Format.formatMoney(item.price));
+      }
+      card.button.disabled = !info.canBuy;
+    });
+  }
+
+  function renderChallenge() {
+    const info = game.getChallengeInfo();
+    els.challengeSection.hidden = !info.unlocked;
+    if (!info.unlocked) return;
+    const c = challengeCard;
+
+    if (info.status === 'none') {
+      setText(c.text, 'Next challenge coming up...');
+      setText(c.reward, '');
+      c.bar.hidden = true;
+      setText(c.note, info.nextSeconds > 0 ? 'Ready in ' + Format.formatTime(info.nextSeconds) : 'Preparing a challenge...');
+      setText(c.label, 'Wait');
+      setText(c.detail, info.nextSeconds > 0 ? Format.formatTime(info.nextSeconds) : '...');
+      c.button.disabled = true;
+      return;
+    }
+
+    c.bar.hidden = false;
+    c.fill.style.width = Math.round((info.progress / info.target) * 100) + '%';
+    setText(c.text, info.text);
+    setText(c.reward, Format.formatMoney(info.reward));
+    if (info.status === 'complete') {
+      setText(c.note, 'Challenge complete!');
+      setText(c.label, 'Collect');
+      setText(c.detail, Format.formatMoney(info.reward));
+      c.button.disabled = false;
+    } else {
+      setText(c.note, Format.formatFull(info.progress) + ' / ' + Format.formatFull(info.target));
+      setText(c.label, 'In progress');
+      setText(c.detail, Math.floor((info.progress / info.target) * 100) + '%');
+      c.button.disabled = true;
+    }
+    c.button.classList.toggle('ready', info.status === 'complete');
+  }
+
+  function renderSponsorship() {
+    const info = game.getSponsorshipInfo();
+    els.sponsorSection.hidden = !info.unlocked;
+    if (!info.unlocked) return;
+    const c = sponsorCard;
+    const campaign = info.campaign;
+
+    if (info.status === 'none') {
+      setText(c.title, 'No campaign right now');
+      setText(c.reward, '');
+      setText(c.meta, 'Brands send offers from time to time. Only one campaign can run at once.');
+      c.bar.hidden = true;
+      setText(c.note, info.nextOfferSeconds > 0 ? 'Next offer in ' + Format.formatTime(info.nextOfferSeconds) : 'Looking for a brand...');
+      setText(c.label, 'Wait');
+      setText(c.detail, info.nextOfferSeconds > 0 ? Format.formatTime(info.nextOfferSeconds) : '...');
+      c.button.disabled = true;
+      return;
+    }
+
+    setText(c.title, campaign.brand + ' - ' + campaign.name);
+    const paymentText = info.bonusPercent > 0
+      ? Format.formatMoney(info.payment) + ' (base ' + Format.formatMoney(info.basePayment) + ' +' + info.bonusPercent + '%)'
+      : Format.formatMoney(info.payment);
+    setText(c.reward, Format.formatMoney(info.payment));
+
+    if (info.status === 'offered') {
+      c.bar.hidden = true;
+      setText(c.meta, campaign.category + ' | ' + Format.formatDuration(campaign.durationSeconds) +
+        ' | Requires ' + formatNumber(campaign.requiredFollowers) + ' followers | Pays ' + paymentText);
+      setText(c.note, info.meetsRequirement ? 'New offer! Accept to start the timer.'
+        : 'You need ' + formatNumber(campaign.requiredFollowers) + ' followers.');
+      setText(c.label, 'Accept');
+      setText(c.detail, Format.formatDuration(campaign.durationSeconds));
+      c.button.disabled = !info.meetsRequirement;
+      c.button.classList.toggle('ready', info.meetsRequirement);
+    } else if (info.status === 'active') {
+      c.bar.hidden = false;
+      c.fill.style.width = Math.round((1 - info.secondsLeft / info.totalSeconds) * 100) + '%';
+      setText(c.meta, campaign.category + ' | Pays ' + paymentText);
+      setText(c.note, 'Campaign running. You can keep playing or close the game.');
+      setText(c.label, 'Time left');
+      setText(c.detail, Format.formatTime(info.secondsLeft));
+      c.button.disabled = true;
+      c.button.classList.remove('ready');
+    } else {
+      c.bar.hidden = false;
+      c.fill.style.width = '100%';
+      setText(c.meta, campaign.category + ' | Payment ' + paymentText);
+      setText(c.note, 'Campaign Complete!');
+      setText(c.label, 'Collect');
+      setText(c.detail, Format.formatMoney(info.payment));
+      c.button.disabled = false;
+      c.button.classList.add('ready');
+    }
+  }
+
+  /** Scrolls to the shop (used by the developer panel). */
+  function openShop() {
+    if (els.shopSection.hidden) {
+      toast('Shop locked', 'Reach Level ' + Config.MONEY.unlockLevel + ' to unlock money and the shop.');
+      return false;
+    }
+    if (typeof els.shopSection.scrollIntoView === 'function') els.shopSection.scrollIntoView({ block: 'start' });
+    return true;
+  }
+
+  function onMoneyMilestone(event) {
+    const m = event.milestone;
+    toast(m.title, m.text + '  +' + Format.formatMoney(m.amount), 5500);
+  }
+
+  function onItemPurchased(event) {
+    toast('Purchased: ' + event.item.name, itemEffectText(event.item));
+  }
+
   /* ======================= dice game ======================= */
 
   function openMinigame(id) {
     if (id === 'dice') openDice();
+    else if (id === 'cupShuffle') openCup();
   }
 
   /** Opens the dice window (also used by the developer panel). */
@@ -409,6 +706,169 @@
     }, Config.MINIGAMES.dice.rollAnimationMs);
   }
 
+  /* ======================= cup shuffle ======================= */
+  // The game decides everything (start cup, list of swaps, winning cup) when
+  // PLAY is pressed. The screen only plays that list as an animation and then
+  // passes the chosen position back; it can not change the result.
+
+  function clearCupTimers() {
+    cupTimers.forEach(function (id) { clearTimeout(id); });
+    cupTimers = [];
+  }
+
+  function cupLater(ms, fn) {
+    cupTimers.push(setTimeout(fn, ms));
+  }
+
+  /** Draws the cups. cups[i] starts in position i. */
+  function buildCups(count, ballCup) {
+    const def = Config.MINIGAMES.cupShuffle;
+    els.cups.textContent = '';
+    els.cups.classList.remove('animate');                // no sliding while the cups are first placed
+    els.cups.style.setProperty('--swap-ms', def.swapMs + 'ms');
+    cupSlots = [];
+    cupCount = count;
+    for (let i = 0; i < count; i++) {
+      const cup = createEl('button', 'cup');
+      cup.type = 'button';
+      cup.setAttribute('aria-label', 'Cup ' + (i + 1));
+      cup.append(createEl('span', 'cup-ball'), createEl('span', 'cup-body'));
+      cup.dataset.index = String(i);
+      cup.addEventListener('click', function () { pickCup(i); });
+      cupSlots.push(i);
+      els.cups.appendChild(cup);
+      placeCup(i);
+    }
+    if (ballCup !== undefined) els.cups.children[ballCup].classList.add('has-ball');
+    void els.cups.offsetWidth;                           // apply the positions, then allow sliding
+    els.cups.classList.add('animate');
+  }
+
+  /** Moves a cup to the position it currently stands in. */
+  function placeCup(cupIndex) {
+    const slotWidth = 100 / cupCount;               // each position is an equal share of the table
+    els.cups.children[cupIndex].style.left = (cupSlots[cupIndex] * slotWidth + (slotWidth - 30) / 2) + '%';
+  }
+
+  function openCup() {
+    const info = game.getMinigameInfo('cupShuffle');
+    if (!info.unlocked) {
+      toast('Cup Shuffle locked', 'Reach Level ' + Config.getUnlock(info.def.unlockId).level + ' to unlock it.');
+      return false;
+    }
+    showModal(els.cupModal, els.btnCupPlay);
+
+    if (cupPhase === 'showing' || cupPhase === 'shuffling') {
+      // The animation is still running (the window was only hidden): just show it.
+    } else if (game.getCupRound()) {
+      // A round is waiting for a pick (the window was closed during the shuffle).
+      buildCups(game.getCupRound().cups);
+      cupPhase = 'pick';
+    } else {
+      buildCups(info.def.cups);
+      cupPhase = 'idle';
+    }
+    renderCup();
+    return true;
+  }
+
+  function closeCup() {
+    hideModal(els.cupModal);
+    // An unfinished animation is cancelled; the round itself stays in the game
+    // and waits for a pick. The cooldown has already started.
+    if (cupPhase === 'showing' || cupPhase === 'shuffling') {
+      clearCupTimers();
+      cupPhase = game.getCupRound() ? 'pick' : 'idle';
+    }
+  }
+
+  function renderCup() {
+    if (els.cupModal.hidden) return;
+    const info = game.getMinigameInfo('cupShuffle');
+    const range = info.rewardRange;
+
+    setText(els.cupHelp, 'Follow the ball, then pick the right cup. Win ' + Format.formatMoney(range.min) + ' - ' +
+      Format.formatMoney(range.max) + '. Wrong cup: ' + Format.formatMoney(range.consolation) + '.');
+
+    if (cupPhase === 'idle') {
+      setText(els.cupResult, cupLastText || (info.lastReward > 0 ? 'Last game: +' + Format.formatMoney(info.lastReward) : 'Ready when you are.'));
+    }
+
+    let label;
+    if (cupPhase === 'showing') label = 'WATCH THE BALL...';
+    else if (cupPhase === 'shuffling') label = 'SHUFFLING...';
+    else if (cupPhase === 'pick') label = 'PICK A CUP';
+    else if (!info.unlocked) label = 'LOCKED';
+    else if (info.secondsLeft > 0) label = 'NEXT GAME IN ' + Format.formatTime(info.secondsLeft);
+    else label = 'PLAY';
+    setText(els.btnCupPlay, label);
+    els.btnCupPlay.disabled = cupPhase !== 'idle' && cupPhase !== 'result' ? true : !info.ready;
+    els.cups.classList.toggle('pickable', cupPhase === 'pick');
+  }
+
+  function playCup() {
+    if (cupPhase !== 'idle' && cupPhase !== 'result') return;
+    const round = game.startCupShuffle();
+    if (!round) { renderCup(); return; }
+
+    cupLastText = '';
+    buildCups(round.cups, round.startPosition);
+    cupPhase = 'showing';
+    setText(els.cupResult, 'Watch the ball...');
+    renderCup();
+
+    const def = Config.MINIGAMES.cupShuffle;
+    const start = els.cups.children[round.startPosition];
+    start.classList.add('lifted');                         // show the ball
+    cupLater(def.revealMs, function () {
+      start.classList.remove('lifted');
+      cupLater(300, function () {
+        cupPhase = 'shuffling';
+        setText(els.cupResult, 'Shuffling...');
+        renderCup();
+        runSwaps(round.swaps, 0);
+      });
+    });
+  }
+
+  /** Plays the swaps decided by the game, one after another. */
+  function runSwaps(swaps, index) {
+    const def = Config.MINIGAMES.cupShuffle;
+    if (index >= swaps.length) {
+      cupPhase = 'pick';
+      setText(els.cupResult, 'Pick a cup!');
+      renderCup();
+      return;
+    }
+    const a = swaps[index][0];
+    const b = swaps[index][1];
+    const cupA = cupSlots.indexOf(a);                      // the cup standing in position a
+    const cupB = cupSlots.indexOf(b);
+    cupSlots[cupA] = b;
+    cupSlots[cupB] = a;
+    placeCup(cupA);
+    placeCup(cupB);
+    cupLater(def.swapMs + 80, function () { runSwaps(swaps, index + 1); });
+  }
+
+  function pickCup(cupIndex) {
+    if (cupPhase !== 'pick') return;
+    const outcome = game.chooseCup(cupSlots[cupIndex]);    // the game decides
+    if (!outcome) return;
+
+    cupPhase = 'result';
+    const winner = cupSlots.indexOf(outcome.ballPosition);
+    els.cups.children[winner].classList.add('has-ball', 'lifted');
+    els.cups.children[cupIndex].classList.add('lifted');
+    els.cups.children[cupIndex].classList.add(outcome.win ? 'won' : 'lost');
+
+    cupLastText = outcome.win
+      ? 'You found it!  +' + Format.formatMoney(outcome.reward)
+      : 'Wrong cup.  +' + Format.formatMoney(outcome.reward) + ' consolation';
+    setText(els.cupResult, cupLastText);
+    renderCup();
+  }
+
   /* ======================= modals ======================= */
 
   function showModal(modal, focusEl) {
@@ -474,13 +934,15 @@
     spawnFloat('+' + formatNumber(event.gain), x, y, game.getPassiveMultiplier() > 1 ? 'passive viral' : 'passive');
   }
 
-  function toast(title, text) {
+  /** @param {number} [duration] how long it stays, in ms (default 2800) */
+  function toast(title, text, duration) {
     const el = createEl('div', 'toast');
     el.append(createEl('div', 'toast-title', title), createEl('div', 'toast-text', text));
     els.toasts.appendChild(el);
     while (els.toasts.childElementCount > 3) els.toasts.removeChild(els.toasts.firstChild);
-    setTimeout(function () { el.classList.add('hide'); }, 2800);
-    setTimeout(function () { el.remove(); }, 3300);
+    const stay = duration || 2800;
+    setTimeout(function () { el.classList.add('hide'); }, stay);
+    setTimeout(function () { el.remove(); }, stay + 500);
   }
 
   function onLevelUp(event) {
@@ -496,6 +958,7 @@
   }
 
   function onUnlock(event) {
+    if (event.unlock.id === 'creatorFund') return;   // the payout message below announces it
     toast('Unlocked: ' + event.unlock.name, event.unlock.description);
   }
 
@@ -516,6 +979,10 @@
   /** A game was started or loaded: forget any leftover animation and redraw. */
   function onLoaded() {
     hideModal(els.diceModal);
+    hideModal(els.cupModal);
+    clearCupTimers();
+    cupPhase = 'idle';
+    cupLastText = '';
     hideModal(els.welcomeModal);
     render();
   }
@@ -537,6 +1004,9 @@
     els.gameScreen.classList.toggle('active', name === 'game');
     if (name === 'menu') {
       hideModal(els.diceModal);
+      hideModal(els.cupModal);
+      clearCupTimers();
+      cupPhase = 'idle';
       hideModal(els.welcomeModal);
     } else {
       showWelcomeIfPending();     // offline earnings saved before a refresh
@@ -556,6 +1026,9 @@
     cacheElements();
     buildUpgradeCards();
     buildMinigameTiles();
+    buildChallengeCard();
+    buildSponsorCard();
+    buildShopCards();
     buildUnlockRows();
     bindInput(handlers);
     subscribeToGame();
@@ -569,6 +1042,8 @@
     updateMenu: updateMenu,
     showClickFeedback: showClickFeedback,
     openDice: openDice,
+    openCup: openCup,
+    openShop: openShop,
     toast: toast
   };
 })(window.Influencer = window.Influencer || {});

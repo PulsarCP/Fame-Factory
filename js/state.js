@@ -20,6 +20,18 @@
  *   lastActiveAt       timestamp (ms) the player was last playing, 0 = unknown
  *   pendingOffline     null, or { seconds, followers } waiting to be collected
  *
+ * Economy (save version 3):
+ *   money              spendable currency, a plain number (never a string)
+ *   moneyMilestones    { milestoneId: true } one-time payouts already received
+ *   items              { itemId: ownedLevel }  (0 = not owned)
+ *                      Item bonuses are NOT stored: they are recalculated from this.
+ *   sponsorship        null, or { campaignId, status: 'offered'|'active'|'complete',
+ *                      offeredAt, startedAt, endsAt }  (timestamps, ms)
+ *   sponsorshipNextOfferAt  timestamp (ms) of the next offer, 0 = not scheduled
+ *   challenges         { current: null | { typeId, target, progress, reward,
+ *                      status: 'active'|'complete' }, nextAt, lastTypeId }
+ *   (the Cup Shuffle cooldown is minigames.cupShuffle.readyAt)
+ *
  * Adding a new system later (money, cars, ...) means adding fields here with a
  * default; sanitize() fills missing fields from defaults so old saves keep
  * working and a damaged save can never crash the game.
@@ -30,8 +42,12 @@
 
   const Config = NS.Config;
 
-  // Followers are capped so arithmetic always stays exact.
+  // Followers and money are capped so arithmetic always stays exact.
   const MAX_FOLLOWERS = Number.MAX_SAFE_INTEGER;
+  const MAX_MONEY = Number.MAX_SAFE_INTEGER;
+
+  const SPONSORSHIP_STATUSES = ['offered', 'active', 'complete'];
+  const CHALLENGE_STATUSES = ['active', 'complete'];
 
   function createMinigames() {
     const minigames = {};
@@ -53,6 +69,9 @@
     const unlocks = {};
     Config.UNLOCKS.forEach(function (u) { unlocks[u.id] = false; });
 
+    const items = {};
+    Config.ITEMS.forEach(function (item) { items[item.id] = 0; });
+
     return {
       followers: 0,
       level: 1,
@@ -65,7 +84,13 @@
       nextEventAt: 0,
       minigames: createMinigames(),
       lastActiveAt: 0,
-      pendingOffline: null
+      pendingOffline: null,
+      money: 0,
+      moneyMilestones: {},
+      items: items,
+      sponsorship: null,
+      sponsorshipNextOfferAt: 0,
+      challenges: { current: null, nextAt: 0, lastTypeId: '' }
     };
   }
 
@@ -134,8 +159,68 @@
       };
     }
 
+    sanitizeEconomy(raw, state);
+
     return state;
   }
 
-  NS.State = { createNew: createNew, sanitize: sanitize, MAX_FOLLOWERS: MAX_FOLLOWERS };
+  /** Economy fields. Missing or damaged data (e.g. a save from before money existed) gets defaults. */
+  function sanitizeEconomy(raw, state) {
+    state.money = Math.min(nonNegativeNumber(raw.money, 0), MAX_MONEY);
+
+    // Only known milestones, and only "true".
+    if (isObject(raw.moneyMilestones)) {
+      Config.MONEY.milestones.forEach(function (m) {
+        if (raw.moneyMilestones[m.id] === true) state.moneyMilestones[m.id] = true;
+      });
+    }
+
+    // Owned items: whole levels between 0 and the item's maximum.
+    Config.ITEMS.forEach(function (item) {
+      const saved = isObject(raw.items) ? raw.items[item.id] : 0;
+      state.items[item.id] = (Number.isInteger(saved) && saved > 0) ? Math.min(saved, item.maxLevel) : 0;
+    });
+
+    // Sponsorship: a known campaign, a known status and sane timestamps.
+    const sp = raw.sponsorship;
+    if (isObject(sp) && Config.getCampaign(sp.campaignId) && SPONSORSHIP_STATUSES.indexOf(sp.status) !== -1) {
+      const startedAt = nonNegativeNumber(sp.startedAt, 0);
+      const endsAt = nonNegativeNumber(sp.endsAt, 0);
+      const usable = sp.status === 'offered' || (startedAt > 0 && endsAt > 0);
+      if (usable) {
+        state.sponsorship = {
+          campaignId: sp.campaignId,
+          status: sp.status,
+          offeredAt: nonNegativeNumber(sp.offeredAt, 0),
+          startedAt: startedAt,
+          endsAt: endsAt
+        };
+      }
+    }
+    state.sponsorshipNextOfferAt = nonNegativeNumber(raw.sponsorshipNextOfferAt, 0);
+
+    // Challenge: a known type with a valid target; progress can never exceed the target.
+    const ch = isObject(raw.challenges) ? raw.challenges : {};
+    state.challenges.nextAt = nonNegativeNumber(ch.nextAt, 0);
+    state.challenges.lastTypeId = Config.getChallengeType(ch.lastTypeId) ? ch.lastTypeId : '';
+    const cur = ch.current;
+    if (isObject(cur) && Config.getChallengeType(cur.typeId) && CHALLENGE_STATUSES.indexOf(cur.status) !== -1 &&
+        nonNegativeNumber(cur.target, 0) >= 1) {
+      const target = nonNegativeNumber(cur.target, 1);
+      const progress = Math.min(target, nonNegativeNumber(cur.progress, 0));
+      state.challenges.current = {
+        typeId: cur.typeId,
+        target: target,
+        progress: progress,
+        reward: nonNegativeNumber(cur.reward, 0),
+        status: progress >= target ? 'complete' : (cur.status === 'complete' ? 'complete' : 'active')
+      };
+      if (state.challenges.current.status === 'complete') state.challenges.current.progress = target;
+    }
+  }
+
+  NS.State = {
+    createNew: createNew, sanitize: sanitize,
+    MAX_FOLLOWERS: MAX_FOLLOWERS, MAX_MONEY: MAX_MONEY
+  };
 })(window.Influencer = window.Influencer || {});

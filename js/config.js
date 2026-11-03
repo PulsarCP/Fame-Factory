@@ -12,7 +12,12 @@
  * Sections:
  *   1 Levels            4 Bonuses (Better Phone, Auto-Post)   7 Offline income
  *   2 Base stats        5 Viral events                        8 Visual stages
- *   3 Unlocks           6 Minigames (dice)                    9 Saving / timing
+ *   2b Economy          6 Minigames (dice, cup shuffle)       9 Saving / timing
+ *   3 Unlocks
+ *
+ * Economy (section 2b): money, milestone payouts, shop items, sponsorships and
+ * challenges. Followers and money are separate: followers are never spent,
+ * money is spent in the shop.
  * ---------------------------------------------------------------------------
  */
 (function (NS) {
@@ -91,6 +96,166 @@
     followersPerSecond: 'per second'
   };
 
+
+  /* ======================= 2b. ECONOMY ======================= */
+
+  // MONEY is a spendable currency, completely separate from followers.
+  // It is never given just for levelling up: it only comes from the milestone
+  // payouts below, challenges, sponsorships and money minigames.
+  // Rewards are one-time: each milestone id is remembered in the save.
+  const MONEY = {
+    unlockLevel: 10,                  // the Creator Fund (money system) opens here
+    milestones: [
+      { id: 'creatorFund10', level: 10, amount: 150,
+        title: 'CREATOR FUND UNLOCKED',
+        text: 'Your growing audience has earned you your first creator payout.' },
+      { id: 'payout15', level: 15, amount: 350,
+        title: 'CREATOR PAYOUT',
+        text: 'Brands keep noticing you. Another payout has arrived.' },
+      { id: 'payout20', level: 20, amount: 750,
+        title: 'SUPERSTAR PAYOUT',
+        text: 'You are a Global Superstar. Your biggest payout yet!' }
+    ]
+  };
+
+  // Kinds of permanent bonus an item can give. Bonuses of the same kind are
+  // ADDED together (+10% and +15% = +25%), never multiplied against each other.
+  //   passiveFollowers  followers per second
+  //   tapFollowers      followers per tap
+  //   allFollowers      both of the above
+  //   sponsorshipMoney  money paid by sponsorships
+  //   minigameMoney     money won in money minigames
+  const BONUS_TYPES = {
+    passiveFollowers: 'passive follower generation',
+    tapFollowers:     'follower generation per tap',
+    allFollowers:     'total follower generation',
+    sponsorshipMoney: 'sponsorship income',
+    minigameMoney:    'money from minigames'
+  };
+
+  // Shop items. Every item is described by data only; the shop and the game
+  // handle all of them the same way, so a new item is just a new entry.
+  //   price         money cost of the NEXT level (same price for every level for now)
+  //   unlockLevel   player level needed to buy it
+  //   maxLevel      1 = can be bought once (starter items). Higher values allow
+  //                 several upgrade levels later: bonus value x owned level.
+  //   bonuses       [{ type, value }]  value 0.10 = +10%
+  //   visual        id used by the CSS to show it in the room (data-items on the stage)
+  const ITEMS = [
+    {
+      id: 'ringLight', name: 'Ring Light', category: 'Equipment',
+      description: 'Perfect lighting for every post.',
+      price: 200, unlockLevel: 10, maxLevel: 1,
+      bonuses: [{ type: 'passiveFollowers', value: 0.10 }],
+      visual: 'ringLight'
+    },
+    {
+      id: 'betterOutfit', name: 'Better Outfit', category: 'Clothes',
+      description: 'A fresh look brands want to work with.',
+      price: 350, unlockLevel: 12, maxLevel: 1,
+      bonuses: [{ type: 'sponsorshipMoney', value: 0.10 }],
+      visual: 'betterOutfit'
+    },
+    {
+      id: 'microphone', name: 'Professional Microphone', category: 'Equipment',
+      description: 'Studio sound for your content.',
+      price: 700, unlockLevel: 15, maxLevel: 1,
+      bonuses: [{ type: 'minigameMoney', value: 0.10 }],
+      visual: 'microphone'
+    },
+    {
+      id: 'camera', name: 'Professional Camera', category: 'Equipment',
+      description: 'Sharper videos reach more people.',
+      price: 1500, unlockLevel: 18, maxLevel: 1,
+      bonuses: [{ type: 'allFollowers', value: 0.15 }],
+      visual: 'camera'
+    },
+    {
+      id: 'roomUpgrade', name: 'Room Upgrade', category: 'Room',
+      description: 'A real studio instead of a messy room.',
+      price: 3000, unlockLevel: 20, maxLevel: 1,
+      bonuses: [{ type: 'sponsorshipMoney', value: 0.10 }, { type: 'passiveFollowers', value: 0.05 }],
+      visual: 'roomUpgrade'
+    }
+  ];
+
+  function getItem(id) {
+    return ITEMS.find(function (item) { return item.id === id; }) || null;
+  }
+
+  // Sponsorships (version 1): one campaign at a time.
+  // Flow: an offer appears -> accept -> the campaign timer runs (it keeps
+  // running while the game is closed) -> Campaign Complete -> collect the money.
+  // Payment = basePayment x (1 + sum of the sponsorshipMoney bonuses of owned items).
+  // A campaign is only offered when the player has "requiredFollowers" (followers
+  // are never spent; this is just a requirement).
+  const SPONSORSHIPS = {
+    unlockLevel: 20,
+    offerDelaySeconds: { min: 120, max: 240 },   // wait before an offer appears (after unlock / collect)
+    campaigns: [
+      { id: 'glowSummer', brand: 'GlowPop', category: 'Fashion / Beauty', name: 'Summer Glow Launch',
+        requiredFollowers: 5200000, durationSeconds: 8 * 60, basePayment: 500 },
+      { id: 'byteSpeaker', brand: 'ByteBeat', category: 'Technology', name: 'Pocket Speaker Review',
+        requiredFollowers: 6000000, durationSeconds: 15 * 60, basePayment: 850 },
+      { id: 'freshMorning', brand: 'FreshFuel', category: 'Lifestyle', name: 'Morning Routine Series',
+        requiredFollowers: 7500000, durationSeconds: 25 * 60, basePayment: 1200 }
+    ]
+  };
+
+  function getCampaign(id) {
+    return SPONSORSHIPS.campaigns.find(function (c) { return c.id === id; }) || null;
+  }
+
+  // Challenges (version 1): one at a time. When it is completed the player
+  // collects the money; the next one appears after "delaySeconds".
+  // Only challenges the player can do right now are offered: "unlockId" must be
+  // unlocked. "targets" and "rewards" use the entry with the highest
+  // fromLevel <= the player's level. Rewards are rounded to "rewardRounding".
+  // "metric" is the counter the game increases while playing.
+  const CHALLENGES = {
+    unlockLevel: 12,
+    delaySeconds: 300,                // wait after collecting a reward before the next challenge
+    rewardRounding: 5,
+    rewards: [
+      { fromLevel: 12, min: 50,  max: 150 },
+      { fromLevel: 17, min: 150, max: 400 }
+    ],
+    types: [
+      { id: 'gainFollowers', metric: 'followersGained', unlockId: null,
+        text: 'Gain {target} followers',
+        targets: [
+          { fromLevel: 12, target: 10000 }, { fromLevel: 14, target: 30000 }, { fromLevel: 16, target: 100000 },
+          { fromLevel: 18, target: 200000 }, { fromLevel: 20, target: 350000 }
+        ] },
+      { id: 'tapCount', metric: 'taps', unlockId: null,
+        text: 'Perform {target} manual taps',
+        targets: [{ fromLevel: 12, target: 100 }, { fromLevel: 16, target: 200 }] },
+      { id: 'viralFollowers', metric: 'viralFollowers', unlockId: 'viralEvents',
+        text: 'Gain {target} followers during Going Viral',
+        targets: [{ fromLevel: 12, target: 2500 }, { fromLevel: 16, target: 25000 }] },
+      { id: 'diceRoll', metric: 'diceRolls', unlockId: 'diceGame',
+        text: 'Complete one Dice roll',
+        targets: [{ fromLevel: 12, target: 1 }] },
+      { id: 'cupWin', metric: 'cupWins', unlockId: 'cupShuffle',
+        text: 'Win one Cup Shuffle',
+        targets: [{ fromLevel: 12, target: 1 }] },
+      { id: 'sponsorship', metric: 'sponsorships', unlockId: 'sponsorships',
+        text: 'Complete one sponsorship',
+        targets: [{ fromLevel: 12, target: 1 }] }
+    ]
+  };
+
+  function getChallengeType(id) {
+    return CHALLENGES.types.find(function (t) { return t.id === id; }) || null;
+  }
+
+  /** Entry of a "fromLevel" list that applies at a level (the highest fromLevel <= level). */
+  function tierForLevel(list, level) {
+    let chosen = list[0];
+    list.forEach(function (entry) { if (level >= entry.fromLevel) chosen = entry; });
+    return chosen;
+  }
+
   /* ======================= 3. UNLOCKS ======================= */
 
   // Things that switch on when the player reaches a level. An unlock can be:
@@ -99,6 +264,12 @@
   //   - "multipliers": permanently multiplies a stat (applied after bonuses)
   // Unlock state is always derived from the level, never trusted from a save.
   const UNLOCKS = [
+    {
+      id: 'creatorFund',
+      level: MONEY.unlockLevel,
+      name: 'Creator Fund',
+      description: 'You can now earn and spend money in the Shop.'
+    },
     {
       id: 'passiveFollowers',
       level: 5,
@@ -113,11 +284,23 @@
       description: 'Random viral moments will boost your followers for a short time.'
     },
     {
+      id: 'challenges',
+      level: CHALLENGES.unlockLevel,
+      name: 'Challenges',
+      description: 'Complete challenges to earn money.'
+    },
+    {
       id: 'proCamera',
       level: 13,
-      name: 'Pro Camera',
+      name: 'Better Content',
       description: 'Better content: x2 followers per tap.',
       multipliers: { followersPerClick: 2 }
+    },
+    {
+      id: 'cupShuffle',
+      level: 14,
+      name: 'Cup Shuffle',
+      description: 'A money minigame: find the ball under the cups.'
     },
     {
       id: 'diceGame',
@@ -133,6 +316,12 @@
       multipliers: { followersPerSecond: 2 }
     },
     {
+      id: 'sponsorships',
+      level: SPONSORSHIPS.unlockLevel,
+      name: 'Sponsorships',
+      description: 'Brands offer you paid campaigns.'
+    },
+    {
       id: 'verifiedBadge',
       level: 18,
       name: 'Verified Badge',
@@ -140,6 +329,9 @@
       multipliers: { followersPerClick: 2, followersPerSecond: 2 }
     }
   ];
+
+  // Show the unlock list in level order.
+  UNLOCKS.sort(function (a, b) { return a.level - b.level; });
 
   function getUnlock(id) {
     return UNLOCKS.find(function (u) { return u.id === id; }) || null;
@@ -240,19 +432,57 @@
 
   /* ======================= 6. MINIGAMES ======================= */
 
-  // Dice game. Reward = earning power x dice result x rewardSeconds, where
+  // Every minigame shares the same structure:
+  //   unlockId         unlock (level) needed to play
+  //   cooldownSeconds  wait between plays (saved as a timestamp, so refreshing never skips it)
+  //   rewardType       'followers' or 'money'
+  //   challengeMetric  challenge counter increased by a successful play
+  //   cooldownText     label shown on the tile while waiting
+  // plus the settings of that particular game (below).
+  //
+  // Dice game: reward = earning power x dice result x rewardSeconds, where
   //   earning power = followers per second + followers per tap x tapWeight
   // (so the reward keeps up as the player grows). Viral multipliers are not used.
+  //
+  // Cup Shuffle: a ball is hidden under one of the cups, the cups are swapped
+  // "swaps" times and the player picks one. The swaps are decided BEFORE the
+  // animation starts and the ball is tracked through them, so the right cup is
+  // a real result and not decided after the player chooses.
+  // Money rewards use the entry with the highest fromLevel <= the player's level
+  // (a random amount between min and max, rounded to "rewardRounding").
+  // The Professional Microphone adds its minigameMoney bonus on top.
+  // A wrong cup gives a small "consolation" amount.
   const MINIGAMES = {
     dice: {
       id: 'dice',
       name: 'Dice Game',
       unlockId: 'diceGame',
+      rewardType: 'followers',
+      challengeMetric: 'diceRolls',
+      cooldownText: 'Next roll in',
       cooldownSeconds: 90,
       sides: 6,
       rewardSeconds: 15,              // each pip is worth this many seconds of earning power
       tapWeight: 0.5,                 // how many taps per second count towards earning power
       rollAnimationMs: 900
+    },
+    cupShuffle: {
+      id: 'cupShuffle',
+      name: 'Cup Shuffle',
+      unlockId: 'cupShuffle',
+      rewardType: 'money',
+      challengeMetric: 'cupWins',
+      cooldownText: 'Next game in',
+      cooldownSeconds: 5 * 60,        // 5 minutes for testing
+      cups: 3,
+      swaps: 7,                       // how many times two cups swap places
+      revealMs: 1300,                 // the ball is shown for this long
+      swapMs: 520,                    // time of one swap (not too fast on purpose)
+      rewardRounding: 5,
+      rewards: [
+        { fromLevel: 14, min: 100, max: 250, consolation: 15 },
+        { fromLevel: 20, min: 150, max: 300, consolation: 25 }
+      ]
     }
   };
 
@@ -287,7 +517,7 @@
 
   const SAVE = {
     key: 'influencer.save',   // localStorage key (unchanged, so old saves still load)
-    version: 2,               // bump when the save format changes
+    version: 3,               // bump when the save format changes (3 = economy)
     autosaveSeconds: 10       // regular autosave interval
   };
 
@@ -296,7 +526,7 @@
   const TICK_MS = 1000;
 
   // Shown on the hidden version label (tap it 7 times to open the dev panel).
-  const VERSION = 'v0.2.0-dev';
+  const VERSION = 'v0.3.0-dev';
 
   // Developer panel activation by tapping the version label.
   const DEV = { tapsToOpen: 7, tapWindowMs: 4000 };
@@ -311,6 +541,11 @@
     EVENTS: EVENTS,
     EVENT_SCHEDULER: EVENT_SCHEDULER,
     MINIGAMES: MINIGAMES,
+    MONEY: MONEY,
+    BONUS_TYPES: BONUS_TYPES,
+    ITEMS: ITEMS,
+    SPONSORSHIPS: SPONSORSHIPS,
+    CHALLENGES: CHALLENGES,
     OFFLINE: OFFLINE,
     VISUAL_STAGES: VISUAL_STAGES,
     SAVE: SAVE,
@@ -324,6 +559,10 @@
     upgradeEffectTotal: upgradeEffectTotal,
     getUpgrade: getUpgrade,
     getUnlock: getUnlock,
+    getItem: getItem,
+    getCampaign: getCampaign,
+    getChallengeType: getChallengeType,
+    tierForLevel: tierForLevel,
     stageForLevel: stageForLevel
   });
 })(window.Influencer = window.Influencer || {});

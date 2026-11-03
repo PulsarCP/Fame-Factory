@@ -42,6 +42,27 @@
     return n < 1e9 ? n.toLocaleString('en-US') : formatNumber(n);
   }
 
+  /**
+   * Money: 150 -> "$150", 1500 -> "$1,500", 2500000 -> "$2.5M".
+   * Full digits below a million, abbreviated like followers above that.
+   */
+  function formatMoney(value) {
+    if (typeof value !== 'number' || !isFinite(value) || value <= 0) return '$0';
+    const n = Math.floor(value);
+    return '$' + (n < 1e6 ? n.toLocaleString('en-US') : formatNumber(n));
+  }
+
+  /**
+   * Rates such as followers per tap / per second. Item bonuses can make them
+   * fractional, so small numbers keep one decimal (3.3 -> "3.3", 4 -> "4").
+   */
+  function formatRate(value) {
+    if (typeof value !== 'number' || !isFinite(value) || value <= 0) return '0';
+    if (value >= 100) return formatNumber(value);
+    const tenths = Math.floor(value * 10 + 1e-9);
+    return tenths % 10 ? (tenths / 10).toFixed(1) : String(tenths / 10);
+  }
+
   /** 75 -> "1:15", 9 -> "0:09" (compact countdown for bonus timers). */
   function formatTime(totalSeconds) {
     const total = Math.max(0, Math.floor(totalSeconds));
@@ -72,6 +93,8 @@
   NS.Format = {
     formatNumber: formatNumber,
     formatFull: formatFull,
+    formatMoney: formatMoney,
+    formatRate: formatRate,
     formatTime: formatTime,
     formatClock: formatClock,
     formatDuration: formatDuration

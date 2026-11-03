@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Influencer</title>
-  <link rel="stylesheet" href="css/style.css?v=0.2.0">
+  <link rel="stylesheet" href="css/style.css?v=0.3.0">
 </head>
 <body>
 
@@ -41,6 +41,8 @@
           <div class="followers">
             <div id="followers" class="followers-count">0</div>
             <div class="followers-label">Followers</div>
+            <!-- Money: shown once the Creator Fund is unlocked (Level 10) -->
+            <div id="money" class="money" hidden>$0</div>
           </div>
           <button id="btn-menu" class="btn-small" type="button">Menu</button>
         </div>
@@ -70,6 +72,18 @@
         <div class="room-wall"></div>
         <div class="room-floor"></div>
         <div class="spotlights" aria-hidden="true"></div>
+
+        <!--
+          Shop items shown in the room. Each one appears when its id is listed
+          in the stage's data-items attribute (set from the owned items).
+          Placeholder CSS shapes for now; replace with real art later.
+        -->
+        <div class="items-layer" aria-hidden="true">
+          <div class="item item-roomUpgrade"><i class="rug"></i><i class="frame frame-a"></i><i class="frame frame-b"></i><i class="ceiling-light"></i></div>
+          <div class="item item-ringLight"><i></i><b></b></div>
+          <div class="item item-microphone"><i></i><b></b></div>
+          <div class="item item-camera"><i></i><b></b></div>
+        </div>
 
         <div class="slot slot-wall-left" data-slot="wall-left">
           <div class="decor decor-window" data-show="1 2 3 4"></div>
@@ -139,11 +153,30 @@
         <h2 class="panel-subtitle">Minigames</h2>
         <div id="minigame-list" class="minigame-list"></div>
 
+        <!-- Challenge (Level 12) -->
+        <div id="challenge-section" hidden>
+          <h2 class="panel-subtitle">Challenge</h2>
+          <div id="challenge-card" class="card"></div>
+        </div>
+
+        <!-- Sponsorship (Level 20) -->
+        <div id="sponsor-section" hidden>
+          <h2 class="panel-subtitle">Sponsorship</h2>
+          <div id="sponsor-card" class="card"></div>
+        </div>
+
+        <!-- Shop (money unlocked at Level 10) -->
+        <div id="shop-section" hidden>
+          <h2 class="panel-subtitle">Shop</h2>
+          <p class="panel-note">Items cost money, never followers. Each item can be bought once.</p>
+          <div id="shop-list" class="shop-list"></div>
+        </div>
+
         <h2 class="panel-subtitle">Unlocks</h2>
         <ul id="unlock-list" class="unlock-list"></ul>
 
         <!-- Tapping this label 7 times opens the hidden developer panel (see js/dev.js) -->
-        <div id="version-label" class="version-label">v0.2.0-dev</div>
+        <div id="version-label" class="version-label">v0.3.0-dev</div>
       </section>
 
     </div>
@@ -168,6 +201,21 @@
     </div>
   </div>
 
+  <!-- ===================== CUP SHUFFLE (opened from the Minigames list) ===================== -->
+  <div id="modal-cup" class="modal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="cup-title">
+      <h2 id="cup-title" class="modal-title">Cup Shuffle</h2>
+      <p id="cup-help" class="modal-text"></p>
+
+      <div id="cups" class="cups" aria-live="polite"></div>
+
+      <div id="cup-result" class="dice-result"></div>
+
+      <button id="btn-cup-play" class="btn btn-primary" type="button">PLAY</button>
+      <button id="btn-cup-close" class="btn-link modal-close" type="button">Close</button>
+    </div>
+  </div>
+
   <!-- ===================== WELCOME BACK (offline earnings) ===================== -->
   <div id="modal-welcome" class="modal" hidden>
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="welcome-title">
@@ -188,13 +236,13 @@
     Plain scripts, loaded in this order (works from file://, no server needed):
     config -> format -> state -> storage -> game -> ui -> dev -> main
   -->
-  <script src="js/config.js?v=0.2.0"></script>
-  <script src="js/format.js?v=0.2.0"></script>
-  <script src="js/state.js?v=0.2.0"></script>
-  <script src="js/storage.js?v=0.2.0"></script>
-  <script src="js/game.js?v=0.2.0"></script>
-  <script src="js/ui.js?v=0.2.0"></script>
-  <script src="js/dev.js?v=0.2.0"></script>
-  <script src="js/main.js?v=0.2.0"></script>
+  <script src="js/config.js?v=0.3.0"></script>
+  <script src="js/format.js?v=0.3.0"></script>
+  <script src="js/state.js?v=0.3.0"></script>
+  <script src="js/storage.js?v=0.3.0"></script>
+  <script src="js/game.js?v=0.3.0"></script>
+  <script src="js/ui.js?v=0.3.0"></script>
+  <script src="js/dev.js?v=0.3.0"></script>
+  <script src="js/main.js?v=0.3.0"></script>
 </body>
 </html>
